@@ -1,0 +1,81 @@
+# XRD Analysis Workflow Changelog
+
+This document tracks all significant changes made to the XRD analysis workflow.
+
+## v1.0.0 (Initial Release)
+
+### Added
+- Initial project with basic XRD data analysis capabilities
+- Basic functions for importing, transforming and visualizing XRD data
+- Sample name extraction with basic regex
+- Simple auto offset feature for pattern visualization
+
+## v1.1.0 (Directory Reorganization)
+
+### Added
+- Created a modular project structure with R/, data/, and output/ directories
+- Added setup_project.R script to automate directory creation
+- Created comprehensive README file
+
+### Changed
+- Moved all R scripts to R/ subdirectory
+- Consolidated script sourcing to the setup chunk
+- Updated all file paths to be relative to project root
+
+## v1.2.0 (Path Resolution Fixes)
+
+### Fixed
+- Fixed issues with relative paths in imported scripts
+- Added base_dir parameter to import functions for correct path resolution
+- Improved error messages for debugging path issues
+
+### Added
+- Auto-detection and copying of XRD files to correct location
+- Improved sample name extraction with fixed regex pattern
+- Better error handling with path resolution diagnostics
+
+## v1.3.0 (Output Organization)
+
+### Added
+- Organized output directory structure with subdirectories
+- Advanced plotting features with moving averages
+- Minor grid lines on axes
+- Automated zip archiving with timestamps
+
+### Changed
+- Updated plotting functions to save to organized subdirectories
+- Enhanced plot aesthetics with improved formatting options
+
+## v1.4.0 (Enhanced Data Transformation)
+
+### Added
+- Simplified data transformation with auto offset adjustment
+- Direct creation of long-format data for ggplot
+- Square root transformation option for better visualization
+
+### Changed
+- Improved pattern comparison with adjustable spacing
+- Enhanced color scheme options
+
+## v1.5.0 (Automated Setup)
+
+### Added
+- Enhanced setup script with automatic XRD file discovery
+- Automatic migration of files while preserving directory structure
+- Full diagnostic output during setup process
+
+### Fixed
+- Improved fallback options for file paths
+- More robust path detection for different environments
+
+## v2.0.0 (Complete Integration)
+
+### Added
+- Fully integrated workflow with one-time script sourcing
+- Complete error handling and diagnostics
+- Comprehensive documentation
+
+### Changed
+- Streamlined RMD file with better code organization
+- Improved code comments and documentation
+- Consolidated all path handling into a consistent system
