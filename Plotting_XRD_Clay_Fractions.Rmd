@@ -1,0 +1,428 @@
+---
+title: "XRD Jauf Clay Fractions"
+author: "Dr. Amao"
+date: "2022-10-10"
+output: html_document
+---
+
+
+
+```{r message=FALSE, warning=FALSE}
+library(readxl)
+library(tidyverse)
+library(patchwork)
+library(ggpubr)
+library(powdR)
+library(magrittr)
+library(ggpp)
+library(janitor)
+library(ggh4x)
+#install.packages("extrafont")
+
+library(extrafont)
+#font_import()
+#pak::pkg_install("powdR")
+theme_set(theme_light()) 
+```
+# Colour Definition 
+```{r}
+################## PREP ###########################
+# Color selection
+
+
+
+ls_colors_1<- c( "#55A958", # Section A
+               "#643C8B", # Section B
+               "#E28048", # Section D
+               "#4FABE6", # Section F
+               "grey50", # Section G
+               "red",
+               "black",
+               "#7DAB57", # Section C
+               "#F5BE45", # Section E
+               "#FBE3A3", # Section H
+               "#BED5EC" , # Section I
+               "#51ABE1"
+               )
+
+ls_colors_2<- c( "#55A958", # Section A
+               "#643C8B", # Section B
+               "red",
+               "#E28048", # Section D
+               "#F5BE45", # Section E
+               "#4FABE6", # Section F
+               "#B2AFB0", # Section G
+               "#7DAB57", # Section C
+               "#FBE3A3", # Section H
+               "#BED5EC"  # Section I
+               )
+
+colors_3 <- c("#FDAE61", # Orange
+              "#D9EF8B", # Light green
+              "#66BD63") # Darker green
+
+colors_4 <- c("#51ABE1", # AB light blue
+              "#54AD5A", # AB green
+              "#673D92") # AB purple
+              
+base_family = "Times New Roman"
+
+if(!dir.exists("figures")){dir.create("figures")} else{print("dir already exists!")}
+
+#ifelse(!dir.exists("./figures"), dir.create("./figures"), "dir already exists!")
+####################################################
+```
+
+
+
+## for files with xrdml ending 
+```{r}
+#https://stackoverflow.com/questions/56773187/how-to-select-multiple-files-with-different-extension-in-filelist-in-r
+#https://benwhalley.github.io/just-enough-r/multiple-raw-data-files.html
+
+filelist <- list.files(path="./XRD/",pattern = '.*\\.(XRDML|xrdml)$',
+   recursive = TRUE, ignore.case = TRUE, include.dirs = TRUE, full.names = TRUE)
+
+
+nms2 <- list.files(path="./XRD/", pattern="xrdml", full.names=TRUE, recursive = TRUE)
+
+# grab the names to names columns later
+cnms2 <- gsub(".*(LM \\w+).*$", "\\1", basename(nms2))
+
+
+library(rxylib)
+
+# loop through files to read in
+lst2 <- lapply(nms2, read_xyData, verbose = TRUE, metaData = FALSE)
+
+# grab the data
+dats2 <- lapply(lst2, function(x) x$dataset[[1]]$data_block)
+
+# rename second column
+dats2 <- lapply(seq_along(dats2), function(x) {
+                          colnames(dats2[[x]])[2] <- cnms2[x] ; dats2[[x]]})
+
+# merge
+#merged.data.frame = Reduce(function(...) merge(..., all=T), dats)
+
+
+alldat2 <- Reduce(function(...) merge(..., by="2Theta"), dats2)%>%as_tibble()
+
+head(alldat2)
+
+alldat2%>%slice(1:10)%>%dput()
+```
+##  Automated plotting
+```{r}
+## First chunk remains unchanged - imports and cleans data
+## Add this second chunk for automated plotting
+
+# Create a directory for saving plots if it doesn't exist
+dir.create("./XRD_plots", showWarnings = FALSE)
+
+# Get the column names (excluding 2Theta which is the x-axis)
+data_columns <- names(alldat2)[names(alldat2) != "2Theta"]
+
+# Create a color palette (avoiding yellow)
+library(RColorBrewer)
+spectral_colors <- brewer.pal(11, "Spectral")
+# Remove yellows (typically the middle colors in spectral palette)
+plot_colors <- spectral_colors[c(1:3, 8:11)]  # Adjust indices as needed
+
+# If we need more colors than available, extend the palette
+if(length(data_columns) > length(plot_colors)) {
+  extended_colors <- rep(plot_colors, ceiling(length(data_columns) / length(plot_colors)))
+  plot_colors <- extended_colors[1:length(data_columns)]
+}
+
+# Loop through each data column and create individual plots
+for(i in seq_along(data_columns)) {
+  # Extract the column name for this iteration
+  col_name <- data_columns[i]
+  
+  # Clean the name for file saving (remove special characters)
+  clean_name <- gsub("[^a-zA-Z0-9]", "_", col_name)
+  
+  # Create the plot on screen first
+  plot(alldat2$`2Theta`, sqrt(as.numeric(alldat2[[col_name]])),
+       type = "l",
+       col = ls_colors_2[i],
+       lwd = 2,  # Bold line
+       xlab = expression(paste("2", theta^o)),
+       ylab = expression(sqrt("Intensity")),
+       main = paste("XRD Pattern:", col_name))
+  
+  # Save the same plot to file
+  dev.copy(png, file = paste0("./XRD_plots/", clean_name, ".png"), 
+           width = 800, height = 600, res = 100)
+  dev.off()
+}
+
+# Create a combined plot with all spectra for comparison
+# Start with an empty plot with appropriate limits
+numeric_data <- as.data.frame(lapply(alldat2[data_columns], as.numeric))
+y_max <- max(sqrt(unlist(numeric_data)), na.rm = TRUE)
+
+plot(alldat2$`2Theta`, rep(NA, length(alldat2$`2Theta`)),
+     type = "n",  # Empty plot
+     ylim = c(0, y_max * 1.05),  # Add 5% margin at top
+     xlab = expression(paste("2", theta^o)),
+     ylab = expression(sqrt("Intensity")),
+     main = "Combined XRD Patterns")
+
+# Add each spectrum as a line
+for(i in seq_along(data_columns)) {
+  col_name <- data_columns[i]
+  lines(alldat2$`2Theta`, sqrt(as.numeric(alldat2[[col_name]])),
+        col = ls_colors_2[i],
+        lwd = 2)
+}
+
+# Add a legend
+legend("topright", 
+       legend = data_columns,
+       col = ls_colors_2,
+       lwd = 2,
+       cex = 0.8,  # Slightly smaller text for readability
+       bty = "n")  # No box around legend
+
+# Save the combined plot
+dev.copy(png, file = "./XRD_plots/Combined_XRD_Patterns.png", 
+         width = 1000, height = 700, res = 100)
+dev.off()
+
+# Compress and zip the XRD_plots directory
+cat("\nCompressing plots directory...\n")
+zip_filename <- "XRD_plots.zip"
+files_to_zip <- list.files("./XRD_plots", full.names = TRUE)
+zip(zipfile = zip_filename, files = files_to_zip)
+cat("XRD plots have been compressed and saved as", zip_filename, "\n")
+```
+
+
+
+```{r}
+alldat3<-alldat2%>%
+  rename_at(.vars = vars(ends_with(".xrdml")),
+            .funs = funs(sub("[.]xrdml$", "", .))) %T>%
+ # rename_with( ~ str_remove(., 'BBHD-FASS_4-70_step01_40s_XRD_4-40_Anas1_2_Cycles_')) %>%
+ # rename_with( ~ str_remove(., '_[^_]*$'))%>%rename(two_theta=`2Theta`)%T>%
+  #janitor::clean_names()%T>% # drop all character after underscore same with '[^(]*'
+ write_excel_csv("SM_0_xrd_clean.csv", na="")#%>%rename(IC=`Basalt Icland`, two_theta=`2Theta`)
+
+# 
+#   rename_all(~str_replace_all(.,"\\.xrdml*",""))%>%
+#   rename_all(~str_replace_all(.,"\\_.*",""))%T>% # drop all character after underscore same with '[^(]*'
+ # write_excel_csv("All_Wells_xrd_files.csv", na="")#%>%rename(IC=`Basalt Icland`, two_theta=`2Theta`)
+
+alldat3
+# alldat4<-alldat3%>%
+# slice( -c(1:20))
+# alldat4
+
+```
+
+
+
+
+
+
+# Adding Zing - Optimized code
+```{r}
+# Define offset values in a named vector for easy maintenance
+offset_values <- c(
+  "J_0_AD_" = 200,
+  "J_0_HT_" = 700,
+  "J_0_GL_" = 1000
+)
+
+# Process the data more programmatically
+c1 <- alldat3 %>%
+  # Step 1: Create new columns with offsets
+  mutate(across(names(offset_values), 
+                ~ . + offset_values[cur_column()],
+                .names = "{str_remove(.col, '_$')}")) %>%
+  
+  # Step 2: Remove original columns and rename 2Theta
+  select(-all_of(names(offset_values))) %>%
+  rename(two_theta = `2Theta`) %>%
+  
+  # Step 3: Convert to long format
+  pivot_longer(-two_theta, names_to = "samples", values_to = "intensities") %>%
+  
+  # Step 4: Set factor levels for proper ordering
+  mutate(samples = factor(samples, levels = c("J_0_GL", "J_0_HT", "J_0_AD")))
+
+# Display the result
+c1
+```
+
+
+
+
+# initial plotting 
+```{r}
+c4 <-
+  ggplot() + #
+  geom_line(data = c1,
+            aes(two_theta, sqrt(intensities), color = as_factor(samples)),
+            linewidth = 0.6) +
+  # geom_line(data=c2, aes(two_theta,sqrt(intensities), color=samples),
+  #           linewidth=0.8)+
+  scale_colour_manual(values = ls_colors_1) +
+  guides(color = guide_legend(ncol = 1)) +
+  scale_x_continuous(limits = c(4, 40), expand = c(0, 0)) +
+  #xlim(4.2,10, )+
+  labs(color = "Samples",
+       x = expression(paste("2", theta ^ o)),
+       y = expression(sqrt("Intensity"))) +
+  theme_classic()
+
+
+#,  plot.margin=unit(c(1,1,7,1),"lines")
+c4
+c5 <- c4 +
+  theme(
+    legend.position = c(0.05, 0.95),
+    legend.box.just = "right",
+    legend.margin = margin(6, 6, 6, 6),
+    legend.key.height = unit(1, 'cm'),
+    legend.key.width = unit(1, 'cm'),
+    legend.text = element_text(colour = "black", size = 15)
+  )#+ scale_y_log10()
+
+
+
+
+c5
+```
+
+## Labelling part  
+
+```{r fig.height=10, fig.width=15}
+max_data_inyensity_root=sqrt(max(c1$intensities)+40)
+c4<-
+  ggplot() + #
+  # geom_line(data=c1, aes(two_theta,intensities, color=as_factor(samples)),
+  #           linewidth=0.6)+
+  geom_line(data=c1, aes(two_theta,sqrt(intensities), color=samples),
+            linewidth=0.8)+
+  scale_colour_manual(values = ls_colors_1)+
+    guides(color=guide_legend(ncol=1)) +
+  
+  #################################Sacling axis ####################################
+  # Modified x and y axis scales with breaks
+  scale_x_continuous(
+    limits = c(4, 41), 
+    breaks = seq(0, 40, by = 5),
+    minor_breaks = seq(0, 40, by = 1),
+    expand = c(0, 0),
+    guide = guide_axis_minor()  # This enables minor ticks
+  ) +
+  scale_y_continuous(
+    limits = c(15, max_data_inyensity_root+20),
+    breaks = seq(0, max_data_inyensity_root+20, by = 10),
+    minor_breaks = seq(0, max_data_inyensity_root+20, by = 5),
+    expand = c(0, 0),
+    guide = guide_axis_minor()  # This enables minor ticks
+  ) +
+##############################################################################
+  #xlim(4.2,10, )+
+  labs(color="Samples")+
+  theme_classic()
+################ increase size of legend color bars / labels ######################
+c4<-c4+theme(
+    legend.position = c(0.8, 0.8),
+    legend.box.just = "right",
+    legend.margin = margin(6, 6, 6, 6),
+    legend.key.height = unit(1, 'cm'),
+    legend.key.width = unit(1, 'cm'),
+    legend.text = element_text(colour = "black", size = 15),
+    text = element_text(size = 20, face = "bold"))+ 
+  guides(color = guide_legend(override.aes = list(linewidth = 5)))
+#,  plot.margin=unit(c(1,1,7,1),"lines")
+######################################################################################
+c4
+c5<-c4+
+  theme(legend.position=c(0.8, 0.85),
+  legend.box.just = "right",
+  legend.margin = margin(6, 6, 6, 6),
+  legend.key.height= unit(1, 'cm'),
+        legend.key.width= unit(1, 'cm'),
+  legend.text = element_text(colour = "black", size = 15))#+ scale_y_log10()
+
+
+###################################
+png(filename ="figures/XRD Plain -two_theta.png",
+
+  width = 3000,
+  height = 2000,
+  units = "px",
+  pointsize = 12,
+  res = 200,
+  bg = "white"
+)
+
+c5
+dev.off()
+
+##########################################
+
+c6 <-c5+
+   labs(x = expression(paste("2", theta ^ o)),
+       y = expression(sqrt("Intensity")))+
+  
+ 
+  
+  #Kaolinite
+  annotate(geom = "text", x = 12.362+0.2, y = 67, label = "Kaolinite (7.15)", color = "black", angle = 90, size = 5)+
+  annotate(geom = "text", x = 21.235, y = 50, label = "Kaolinite (4.18)", color = "black", angle = 90, size = 5)+
+  annotate(geom = "text", x = 23.126, y = 50, label = "Kaolinite (3.84)", color = "black", angle = 90, size = 5)+
+  annotate(geom = "text", x = 24.872+0.2, y = 50, label = "Kaolinite (3.58)", color = "black", angle = 90, size = 5)+
+  annotate(geom = "text", x = 39.264, y = 50, label = "Kaolinite (2.29)", color = "black", angle = 90, size = 5)+
+  
+  #Chlorite
+  annotate(geom = "text", x = 6.162, y = 50, label = "Chlorite (14.33)", color = "black", angle = 90, size = 5)+
+  annotate(geom = "text", x = 12.342+0.2, y = 50, label = "Chlorite (7.17)", color = "black", angle = 90, size = 5)+
+  annotate(geom = "text", x = 18.559-0.6, y = 50, label = "Chlorite (4.78)", color = "black", angle = 90, size = 5)+
+  annotate(geom = "text", x = 24.831+0.2, y = 50, label = "Chlorite (3.58)", color = "black", angle = 90, size = 5)+
+  annotate(geom = "text", x = 37.604, y = 50, label = "Chlorite (2.39)", color = "black", angle = 90, size = 5)+
+  
+  
+  #Illite
+  annotate(geom = "text", x = 8.816, y = 50, label = "Illite (10.02)", color = "black", angle = 90, size = 5)+
+  annotate(geom = "text", x = 19.818, y = 50, label = "Illite (4.48)", color = "black", angle = 90, size = 5)+
+  annotate(geom = "text", x = 25.416, y = 50, label = "Illite (3.50)", color = "black", angle = 90, size = 5)+
+  #annotate(geom = "text", x = 27.721, y = 2180, label = "Illite (3.22)", color = "black", angle = 90, size = 5)+
+  annotate(geom = "text", x = 34.962, y = 50, label = "Illite (2.56)", color = "black", angle = 90, size = 5)+
+  
+ 
+  theme(
+    legend.position = c(0.1, 0.9),
+    legend.box.just = "right",
+    legend.margin = margin(6, 6, 6, 6),
+    legend.key.height = unit(1, 'cm'),
+    legend.key.width = unit(1, 'cm'),
+    legend.text = element_text(colour = "black", size = 15),
+    text = element_text(size = 15, face = "bold"))
+
+
+  
+c6
+##############################################################
+png(filename ="figures/XRD without Table but with labels-two_theta .png",
+
+  width = 3000,
+  height = 2000,
+  units = "px",
+  pointsize = 12,
+  res = 200,
+  bg = "white"
+)
+c6
+
+dev.off()
+
+```
+
+
