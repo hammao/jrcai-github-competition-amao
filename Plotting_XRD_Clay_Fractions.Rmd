@@ -1,0 +1,311 @@
+---
+title: "XRD Jauf Clay Fractions"
+author: "Dr. Amao"
+date: "2022-10-10"
+output: html_document
+---
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE)
+
+# Set working directory to the location of this Rmd file
+# This ensures all relative paths work correctly
+knitr::opts_knit$set(root.dir = normalizePath("."))
+
+# Library loading
+library(readxl)
+library(tidyverse)
+library(patchwork)
+library(ggpubr)
+library(powdR)
+library(magrittr)
+library(ggpp)
+library(janitor)
+library(ggh4x)
+library(extrafont)
+library(RColorBrewer)
+library(gridExtra)
+
+# Set default theme
+theme_set(theme_light()) 
+
+# Source all needed scripts once using relative paths
+source("setup_script.R")       # setup script
+source("R/colors.R")       # Color definitions
+source("R/xrd_import.R")   # XRD data import functions
+source("R/xrd_data_transform.R") # XRD data transformation functions
+source("R/xrd_plotting.R") # XRD plotting functions
+
+# Create output directories if they don't exist
+output_dirs <- c(
+  "output",
+  "output/figures",
+  "output/xrd_plots",
+  "output/xrd_plots/raw",
+  "output/xrd_plots/smoothed",
+  "output/xrd_plots/combined",
+  "output/zip"
+)
+
+for (dir in output_dirs) {
+  if (!dir.exists(dir)) {
+    dir.create(dir, recursive = TRUE)
+    cat("Created directory:", dir, "\n")
+  }
+}
+```
+
+# XRD Data Analysis Workflow
+
+This document demonstrates a complete workflow for importing, transforming, and visualizing XRD data.
+
+# Color Information
+```{r}
+# Colors are already loaded from the setup chunk
+ls_colors_1
+ls_colors_2
+colors_3
+colors_4
+```
+
+## Step 1: Import XRD Data
+
+```{r import-data}
+# Let's check what files are actually in the directory first
+cat("Files in the XRD directory:\n")
+list.files("data/XRD/", recursive = TRUE)
+
+# Try a more flexible pattern to find files
+xrd_data <- import_xrd_data(
+  dir_path = "data/XRD/",                    # Directory containing XRDML files
+  pattern = ".*", # Match any file - we'll verify manually
+  recursive = TRUE,
+  name_pattern = ".*?(J_[A-Za-z0-9_]+)_\\..*$"  
+)
+
+# Display data information
+cat("Imported XRD data dimensions:", dim(xrd_data)[1], "rows,", dim(xrd_data)[2], "columns\n")
+cat("Column names:", paste(names(xrd_data), collapse = ", "), "\n")
+
+# Quick peek at the data
+head(xrd_data[, 1:min(5, ncol(xrd_data))], 3)
+```
+
+## Step 2: Create Advanced Plots with Moving Averages
+
+```{r advanced-plots}
+# Create transformed data in wide format for advanced plotting
+transformed_wide <- transform_xrd_data(
+  data = xrd_data,
+  auto_adjust_percent = -80,  # Smaller spacing
+  long_format = FALSE         # Keep wide format for advanced plotting
+)
+
+# Create plots with enhanced features
+plot_xrd_patterns(
+  data = transformed_wide,
+  theta_col = "two_theta",
+  output_dir = "output/xrd_plots", # Updated relative path
+  ma_window = 7,
+  pattern_prefix = "",
+  create_zip = TRUE
+)
+```
+
+```{r}
+# Display the data structure
+str(xrd_data)
+write_excel_csv(xrd_data, "output/CSV/extracted_data.csv", na="")
+```
+
+## Step 3: Adding Zing (Optimized Transformation)
+
+```{r}
+# Define offset values in a named vector for easy maintenance
+offset_values <- c(
+  "J_SF_250_AD" = 150,
+  "J_SF_250_HT" = 400,
+  "J_SF_250_GL" = 800
+)
+
+# Process the data more programmatically
+c1 <- xrd_data %>%
+  # Step 1: Create new columns with offsets
+  mutate(across(names(offset_values), 
+                ~ . + offset_values[cur_column()],
+                .names = "{str_remove(.col, '_$')}")) %>%
+  
+  # Step 2: Remove original columns and rename 2Theta
+  rename(two_theta = `2Theta`) %>%
+  
+  # Step 3: Convert to long format
+  pivot_longer(cols = c(-two_theta), names_to = "samples", values_to = "intensities") %>%
+  
+  # Step 4: Set factor levels for proper ordering
+  mutate(samples = factor(samples, levels = c("J_SF_250_GL", "J_SF_250_HT", "J_SF_250_AD")))
+
+# Display the result
+head(c1)
+```
+
+## Step 4: Initial Plotting
+
+```{r}
+c4 <-
+  ggplot() + 
+  geom_line(data = c1,
+            aes(two_theta, sqrt(intensities), color = as_factor(samples)),
+            linewidth = 0.6) +
+  scale_colour_manual(values = ls_colors_1) +
+  guides(color = guide_legend(ncol = 1)) +
+  scale_x_continuous(limits = c(4, 40), expand = c(0, 0)) +
+  labs(color = "Samples",
+       x = expression(paste("2", theta ^ o)),
+       y = expression(sqrt("Intensity"))) +
+  theme_classic()
+
+c4
+
+c5 <- c4 +
+  theme(
+    legend.position = c(0.05, 0.95),
+    legend.box.just = "right",
+    legend.margin = margin(6, 6, 6, 6),
+    legend.key.height = unit(1, 'cm'),
+    legend.key.width = unit(1, 'cm'),
+    legend.text = element_text(colour = "black", size = 15)
+  )
+
+c5
+```
+
+## Step 5: Enhanced Plotting with Detailed Formatting
+
+```{r fig.height=10, fig.width=15}
+max_data_inyensity_root = sqrt(max(c1$intensities) + 20)
+
+c4 <-
+  ggplot() + 
+  geom_line(data = c1, 
+            aes(two_theta, sqrt(intensities), color = samples),
+            linewidth = 0.8) +
+  scale_colour_manual(values = ls_colors_1) +
+  guides(color = guide_legend(ncol = 1)) +
+  
+  # Modified x and y axis scales with breaks
+  scale_x_continuous(
+    limits = c(4, 41), 
+    breaks = seq(0, 40, by = 5),
+    minor_breaks = seq(0, 40, by = 1),
+    expand = c(0, 0),
+    guide = guide_axis_minor()  # This enables minor ticks
+  ) +
+  scale_y_continuous(
+    limits = c(15, max_data_inyensity_root + 20),
+    breaks = seq(0, max_data_inyensity_root + 20, by = 10),
+    minor_breaks = seq(0, max_data_inyensity_root + 20, by = 5),
+    expand = c(0, 0),
+    guide = guide_axis_minor()  # This enables minor ticks
+  ) +
+  labs(color = "Samples") +
+  theme_classic()
+
+# Increase size of legend color bars / labels
+c4 <- c4 + theme(
+  legend.position = c(0.8, 0.8),
+  legend.box.just = "right",
+  legend.margin = margin(6, 6, 6, 6),
+  legend.key.height = unit(1, 'cm'),
+  legend.key.width = unit(1, 'cm'),
+  legend.text = element_text(colour = "black", size = 15),
+  text = element_text(size = 20, face = "bold")
+) + 
+  guides(color = guide_legend(override.aes = list(linewidth = 5)))
+
+c4
+
+c5 <- c4 +
+  labs(x = expression(paste("2", theta ^ o)),
+       y = expression(sqrt("Intensity"))) +
+  theme(
+    legend.position = c(0.8, 0.85),
+    legend.box.just = "right",
+    legend.margin = margin(6, 6, 6, 6),
+    legend.key.height = unit(1, 'cm'),
+    legend.key.width = unit(1, 'cm'),
+    legend.text = element_text(colour = "black", size = 15)
+  )
+
+# Save the plot with improved file path
+ggsave(
+  filename = "output/figures/XRD_Plain.png",
+  plot = c5,
+  width = 15,
+  height = 10,
+  dpi = 200
+)
+
+# Add plot with labels
+c6 <- c5 +
+  labs(x = expression(paste("2", theta ^ o)),
+       y = expression(sqrt("Intensity"))) +
+  
+  #Quartz
+  annotate(geom = "text", x = 26.757, y = 49, label = "Quartz (3.33)", color = "black", angle = 90, size = 5)+
+  
+  #Kaolinite
+  annotate(geom = "text", x = 12.362-0.2, y = 102, label = "Kaolinite (7.15)", color = "black", angle = 90, size = 5)+
+  annotate(geom = "text", x = 21.235, y = 49.5, label = "Kaolinite (4.18)", color = "black", angle = 90, size = 5)+
+  annotate(geom = "text", x = 23.126, y = 47.5, label = "Kaolinite (3.84)", color = "black", angle = 90, size = 5)+
+  annotate(geom = "text", x = 24.872-0.2, y = 84, label = "Kaolinite (3.58)", color = "black", angle = 90, size = 5)+
+  annotate(geom = "text", x = 37.566, y = 46.5, label = "Kaolinite (3.58)", color = "black", angle = 90, size = 5)+
+  annotate(geom = "text", x = 39.264, y = 42.5, label = "Kaolinite (2.29)", color = "black", angle = 90, size = 5)+
+  
+  #Chlorite
+  #annotate(geom = "text", x = 6.162, y = 52, label = "Chlorite (14.33)", color = "black", angle = 90, size = 5)+
+  annotate(geom = "text", x = 12.342+0.2, y = 80, label = "Chlorite (7.17)", color = "black", angle = 90, size = 5)+
+  annotate(geom = "text", x = 18.559-0.6, y = 45, label = "Chlorite (4.78)", color = "black", angle = 90, size = 5)+
+  annotate(geom = "text", x = 24.831+0.2, y = 65, label = "Chlorite (3.58)", color = "black", angle = 90, size = 5)+
+  #annotate(geom = "text", x = 37.604, y = 50, label = "Chlorite (2.39)", color = "black", angle = 90, size = 5)+
+  
+  # Montmorillonite
+  # annotate(geom = "text", x = 7.197, y = 58.5, label = "Montmorillonite (12.27)", color = "black", angle = 90, size = 5)+
+   annotate(geom = "text", x = 11.476, y = 50.5, label = "Montmorillonite (7.70)", color = "black", angle = 90, size = 5)+
+  # annotate(geom = "text", x = 14.423, y = 50.5, label = "Montmorillonite (6.13)", color = "black", angle = 90, size = 5)+
+  #annotate(geom = "text", x = 19.945, y = 55, label = "Montmorillonite (4.45)", color = "black", angle = 90, size = 5)+
+  annotate(geom = "text", x = 20.298, y = 54.5, label = "Montmorillonite (4.37)", color = "black", angle = 90, size = 5)+
+  
+  # # Vermiculite
+  # annotate(geom = "text", x = 6.255, y = 53, label = "Vermiculite (14.12)", color = "black", angle = 90, size = 5)+
+  # annotate(geom = "text", x = 12.528, y = 53, label = "Vermiculite (7.06)", color = "black", angle = 90, size = 5)+
+  # annotate(geom = "text", x = 19.313, y = 53, label = "Vermiculite (4.59)", color = "black", angle = 90, size = 5)+
+  # annotate(geom = "text", x = 21.483, y = 53, label = "Vermiculite (4.13)", color = "black", angle = 90, size = 5)+
+  
+  #Illite
+  annotate(geom = "text", x = 8.816, y = 51, label = "Illite (10.02)", color = "black", angle = 90, size = 5)+
+  annotate(geom = "text", x = 19.818, y = 45, label = "Illite (4.48)", color = "black", angle = 90, size = 5)+
+  annotate(geom = "text", x = 25.416, y = 44, label = "Illite (3.50)", color = "black", angle = 90, size = 5)+
+  #annotate(geom = "text", x = 27.721, y = 2180, label = "Illite (3.22)", color = "black", angle = 90, size = 5)+
+  annotate(geom = "text", x = 34.962, y = 40, label = "Illite (2.56)", color = "black", angle = 90, size = 5)+
+  
+  
+  theme(
+    legend.position = c(0.1, 0.9),
+    legend.box.just = "right",
+    legend.margin = margin(6, 6, 6, 6),
+    legend.key.height = unit(1, 'cm'),
+    legend.key.width = unit(1, 'cm'),
+    legend.text = element_text(colour = "black", size = 15),
+    text = element_text(size = 15, face = "bold")
+  )
+
+c6
+
+# Save the labeled plot with improved file path
+ggsave(
+  filename = "output/figures/XRD_Labeled.png",
+  plot = c6,
+  width = 15,
+  height = 10,
+  dpi = 200
+)
+```
