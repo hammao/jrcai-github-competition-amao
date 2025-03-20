@@ -1,5 +1,3 @@
-# jrcai-github-competition-amao
-Plotting publication grade XRD dataset - JRCAI
 # XRD Analysis Project
 
 ## Overview
@@ -20,7 +18,6 @@ This project represents the culmination of these efforts – a self-contained, p
 The solution provides a self-contained, portable structure that can be placed anywhere within a larger project or used as a standalone mini-project, making it ideal for collaborative research environments where different researchers might use different analysis pathways but need consistent, high-quality outputs.
 
 ## My Envision Project Structure
-
 ```
 project/
 ├── R/                    # Modular scripts
@@ -38,4 +35,5 @@ project/
 │   │   └── combined/     # Combined pattern plots
 │   └── zip/              # Zip archives
 ├── setup_project.R       # Project setup script
-└── Main.Rmd               # Main analysis document
+└── Main.Rmd              # Main analysis document
+```

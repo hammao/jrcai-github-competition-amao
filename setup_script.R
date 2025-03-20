@@ -113,9 +113,6 @@ if (dir.exists(xrd_original_dir)) {
   cat("Please manually add your XRD files to the data/XRD/ directory.\n")
 }
 
-# Create a simple README file
-readme_content <- "# XRD Analysis Project\n\nThis directory contains a self-contained XRD analysis project.\n\n## Structure\n\n- `R/`: R scripts for XRD data analysis\n- `data/XRD/`: XRD data files\n- `output/`: Output files\n- `J_0.Rmd`: Main analysis document\n"
-writeLines(readme_content, file.path(script_dir, "README.md"))
 
 cat("\nProject setup complete! You can now edit your Rmd file to use the new structure.\n")
 cat("Note: All paths in scripts should be relative to this project directory.\n")
