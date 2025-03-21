@@ -1,0 +1,220 @@
+# Technical Development Log
+
+This document provides a technical breakdown of the changes made during development.
+
+## Initial Scripts
+
+### xrd_import.R
+The original import script had several limitations:
+- Used fixed absolute paths
+- Basic sample name extraction with limited regex
+- No fallback options for file resolution
+- Limited error diagnostics
+
+```r
+import_xrd_data <- function(dir_path = "./XRD/", 
+                           pattern = ".*\\.(XRDML|xrdml)$",
+                           recursive = TRUE,
+                           name_pattern = ".*([A-Z]_[A-Za-z0-9_]+).*$",
+                           verbose = TRUE) {
+  # Basic implementation without path resolution
+}
+```
+
+### xrd_data_transform.R
+Original limitations:
+- Complex parameters requiring in-depth understanding
+- No direct support for ggplot formats
+- No integrated adjustment for pattern spacing
+
+```r
+transform_xrd_data <- function(data, 
+                              offset_method = "auto",
+                              offset_value = 500,
+                              custom_offsets = NULL,
+                              auto_step = 300,
+                              remove_trailing = TRUE,
+                              order_method = "reverse",
+                              long_format = FALSE) {
+  # Complex implementation with many options
+}
+```
+
+### xrd_plotting.R
+Original limitations:
+- Fixed output directories
+- No organization of output types
+- Basic file naming without timestamps
+
+```r
+plot_xrd_patterns <- function(data, 
+                             theta_col = "2Theta",
+                             output_dir = "./XRD_plots",
+                             ma_window = 7,
+                             create_zip = TRUE) {
+  # Single directory for all outputs
+}
+```
+
+## Key Improvements
+
+### Path Resolution
+
+The biggest challenge was resolving paths correctly between sourced scripts. The solution:
+
+1. Added a base_dir parameter to all functions
+```r
+import_xrd_data <- function(..., base_dir = ".") {
+  full_dir_path <- file.path(base_dir, dir_path)
+  # Use full_dir_path for all operations
+}
+```
+
+2. Set the working directory in the Rmd file
+```r
+knitr::opts_knit$set(root.dir = normalizePath("."))
+```
+
+3. Used file.path() for all path construction
+```r
+file_path <- file.path(output_dir, "raw", paste0(clean_name, ".png"))
+```
+
+### Sample Name Extraction
+
+Fixed the regex pattern to properly extract full sample names:
+```r
+# Original
+name_pattern = ".*([A-Z]_[A-Za-z0-9_]+).*$"
+
+# Improved
+name_pattern = ".*?(J_[A-Za-z0-9_]+)_\\..*$"
+```
+
+Key improvements:
+- Non-greedy match with `?` 
+- Explicit match for trailing underscore
+- Explicit match for file extension start
+
+### Directory Structure
+
+Created a standardized directory structure:
+```r
+dirs <- c(
+  "R",                        # Scripts directory
+  "data", "data/XRD",         # Data directories
+  "output",                   # Main output
+  "output/figures",           # General figures
+  "output/xrd_plots",         # XRD plots
+  "output/xrd_plots/raw",     # Raw plots
+  "output/xrd_plots/smoothed",# Smoothed plots
+  "output/xrd_plots/combined",# Combined plots
+  "output/zip"                # Zip archives
+)
+```
+
+### Error Handling
+
+Added comprehensive error handling:
+```r
+# If no files found, provide detailed diagnostic info
+if (length(file_list) == 0) {
+  all_files <- list.files(path = full_dir_path, recursive = recursive, full.names = FALSE)
+  if (length(all_files) > 0) {
+    message("No files matching pattern, but found these files:")
+    message(paste(" -", all_files, collapse = "\n"))
+  }
+  stop(paste("No files found matching pattern:", pattern, "in directory:", full_dir_path))
+}
+```
+
+### Automatic Setup
+
+Created an automated setup procedure:
+```r
+# Get the directory where this script is located
+script_dir <- tryCatch({
+  dirname(rstudioapi::getSourceEditorContext()$path)
+}, error = function(e) {
+  "."  # Current directory
+})
+
+# Create directories
+for (dir in dirs) {
+  if (!dir.exists(dir)) {
+    dir.create(dir, recursive = TRUE)
+  }
+}
+
+# Find XRD files and move them
+xrd_files <- list.files(
+  path = xrd_original_dir, 
+  pattern = "\\.xrdml$|\\.XRDML$|\\.xy$|\\.XY$|\\.txt$|\\.TXT$", 
+  recursive = TRUE,
+  full.names = TRUE
+)
+```
+
+## Script Evolution Timeline
+
+1. **Original Scripts**: Basic functionality without organization
+2. **Directory Reorganization**: Created modular structure, moved scripts to R/
+3. **Path Resolution**: Fixed relative path issues between scripts
+4. **Output Organization**: Organized output into logical subdirectories
+5. **Enhanced Import**: Added better pattern matching and diagnostics
+6. **Simplified Transform**: Made data transformation more intuitive
+7. **Automated Setup**: Created setup script with file discovery and migration
+8. **Full Integration**: Consolidated all improvements into final workflow
+
+## Code Comparison: Before and After
+
+### Before: Multiple script sourcing
+```r
+source("xrd_import.R")
+# Later in the document...
+source("xrd_plotting.R")
+```
+
+### After: One-time centralized sourcing
+```r
+# In setup chunk
+source("R/colors.R")
+source("R/xrd_import.R")
+source("R/xrd_data_transform.R")
+source("R/xrd_plotting.R")
+```
+
+### Before: Inconsistent output paths
+```r
+png(filename ="figures/XRD Plain -two_theta.png", ...)
+```
+
+### After: Organized output structure
+```r
+ggsave(filename = "output/figures/XRD_Plain.png", ...)
+```
+
+### Before: Manual pattern comparison
+```r
+mutate(across(names(offset_values), 
+       ~ . + offset_values[cur_column()], ...))
+```
+
+### After: Simplified pattern comparison
+```r
+transform_xrd_data(
+  data = xrd_data,
+  auto_adjust_percent = -80,
+  long_format = TRUE
+)
+```
+
+## Lessons Learned
+
+1. **Path Resolution**: Always use relative paths with proper resolution
+2. **Modular Structure**: Separate code into logical components
+3. **One-Time Sourcing**: Source scripts once at the beginning
+4. **Error Diagnostics**: Include helpful error messages
+5. **Automated Setup**: Create scripts to handle repetitive setup tasks
+
+This development process demonstrates an evolution from scattered scripts to a fully integrated, modular workflow that is easy to use and maintain.

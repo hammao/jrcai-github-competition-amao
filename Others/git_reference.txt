@@ -1,0 +1,130 @@
+# Git Reference Guide
+
+This document provides a quick reference for adding this project to version control.
+
+## Initial Commit
+
+Start by adding all files to git:
+
+```bash
+# Initialize repository if needed
+git init
+
+# Add the initial project files
+git add setup_project.R R/*.R J_0.Rmd README.md CHANGELOG.md DEVELOPMENT_LOG.md
+git commit -m "Initial commit: XRD analysis project structure"
+```
+
+## Suggested Commit Structure
+
+Here's a suggested sequence of commits that mirrors the development process:
+
+1. **Initial scripts**:
+```bash
+git add original_scripts/
+git commit -m "Add original XRD analysis scripts"
+```
+
+2. **Directory structure**:
+```bash
+git add setup_project.R
+git commit -m "Add script to create project directory structure"
+```
+
+3. **Script improvements**:
+```bash
+git add R/xrd_import.R
+git commit -m "Improve XRD import with better path handling"
+
+git add R/xrd_data_transform.R
+git commit -m "Enhance data transformation with simplified options"
+
+git add R/xrd_plotting.R
+git commit -m "Update plotting with organized output directories"
+
+git add R/colors.R
+git commit -m "Add color definition module"
+```
+
+4. **Main RMD**:
+```bash
+git add J_0.Rmd
+git commit -m "Update main analysis document with centralized script sourcing"
+```
+
+5. **Documentation**:
+```bash
+git add README.md CHANGELOG.md DEVELOPMENT_LOG.md
+git commit -m "Add comprehensive documentation"
+```
+
+## Tagging Versions
+
+Tag important milestones:
+
+```bash
+# Tag the initial version
+git tag -a v1.0.0 -m "Initial Release"
+
+# Tag the final version with all improvements
+git tag -a v2.0.0 -m "Complete Integrated Workflow"
+```
+
+## Suggested .gitignore
+
+Create a `.gitignore` file with these contents:
+
+```
+# Data files
+data/XRD/*.xrdml
+data/XRD/*.XRDML
+data/XRD/*.xy
+data/XRD/*.XY
+data/XRD/*.txt
+
+# Output files
+output/figures/*
+output/xrd_plots/*
+output/zip/*
+
+# R specific
+.Rproj.user
+.Rhistory
+.RData
+.Ruserdata
+
+# OS specific
+.DS_Store
+Thumbs.db
+```
+
+Add it to git:
+```bash
+git add .gitignore
+git commit -m "Add gitignore file"
+```
+
+## Working with Remote Repositories
+
+To connect to a remote repository:
+
+```bash
+# Add a remote repository
+git remote add origin [your-repository-url]
+
+# Push to the remote repository
+git push -u origin main
+
+# Push tags
+git push --tags
+```
+
+## Good Practices for This Project
+
+1. **Don't commit data files**: Use `.gitignore` to exclude XRDML and output files
+2. **Do commit script improvements**: Track all changes to R scripts
+3. **Tag major versions**: Use tags to mark significant milestones
+4. **Include documentation**: Keep README and other docs up to date
+5. **Descriptive commit messages**: Clearly explain what each change accomplishes
+
+By following these practices, you'll have a well-documented project with a clear development history that others can understand and build upon.
